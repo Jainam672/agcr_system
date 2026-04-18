@@ -512,6 +512,25 @@ function togglePw(id, btn) {
     : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
 }
 
+function resetLoginState(clearFields = true) {
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-err');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+  }
+  if (clearFields) {
+    const email = document.getElementById('login-email');
+    const pw = document.getElementById('login-pw');
+    if (email) email.value = '';
+    if (pw) pw.value = '';
+  }
+}
+
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const pw    = document.getElementById('login-pw').value;
@@ -525,8 +544,10 @@ async function doLogin() {
     STATE.token = data.access_token;
     STATE.user  = data;
     STATE.role  = data.role;
+    STATE.currentView = 'dash';
     localStorage.setItem('agcr_token', data.access_token);
     localStorage.setItem('agcr_user', JSON.stringify(data));
+    resetLoginState(false);
     initApp();
   } catch(e) {
     errEl.style.display='flex'; errEl.innerHTML=`${ico('shield',11)} ${escH(e.message)}`;
@@ -625,10 +646,11 @@ function setContent(html) { document.getElementById('page-content').innerHTML = 
 async function doLogout() {
   try { await api('POST', '/auth/logout'); } catch(e){}
   STATE.token = null; STATE.user = null; STATE.role = null;
+  STATE.currentView = 'dash';
   localStorage.removeItem('agcr_token'); localStorage.removeItem('agcr_user');
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-page').style.display = 'grid';
-  document.getElementById('login-email').value=''; document.getElementById('login-pw').value='';
+  resetLoginState(true);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1588,8 +1610,9 @@ async function renderAuditLogs(page=1, action=auditState.action) {
       initApp();
     } catch(e) {
       // Token expired
-      STATE.token=null; STATE.user=null;
+      STATE.token=null; STATE.user=null; STATE.currentView='dash';
       localStorage.removeItem('agcr_token'); localStorage.removeItem('agcr_user');
+      resetLoginState(false);
     }
   }
   // Seed default admin if needed (first run)
