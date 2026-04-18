@@ -213,6 +213,9 @@ tbody tr:hover{background:var(--g50);}
 .profile-avatar-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:24px;gap:12px;}
 .profile-avatar{width:88px;height:88px;border-radius:50%;background:var(--sage);display:flex;align-items:center;justify-content:center;color:var(--white);font-size:30px;font-weight:700;font-family:'Playfair Display',serif;overflow:hidden;border:3px solid var(--pale);}
 .profile-avatar img{width:100%;height:100%;object-fit:cover;}
+.profile-settings-grid{display:grid;grid-template-columns:minmax(220px,280px) 1fr;gap:24px;align-items:start;}
+.profile-settings-form{display:grid;gap:14px;}
+.info-note{padding:14px 16px;border-radius:14px;background:var(--g50);border:1px solid var(--g100);color:var(--g600);font-size:13px;display:inline-flex;align-items:center;gap:10px;margin-top:18px;}
 .photo-btn{position:relative;cursor:pointer;}
 .photo-btn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
 
@@ -526,7 +529,9 @@ function initApp() {
   appEl.style.display = 'flex';
 
   const u = STATE.user;
-  const isAdmin = u.role === 'admin';
+  STATE.role = u.role;
+  u.can_add_hospitals = Boolean(u.can_add_hospitals);
+  const isAdmin = STATE.role === 'admin';
 
   // Sidebar user info
   const avEl = document.getElementById('sb-avatar');
@@ -607,7 +612,9 @@ async function doLogout() {
 // ─────────────────────────────────────────────────────────────────
 async function renderUserDash() {
   setPage('Dashboard', `Welcome back, ${STATE.user.name.split(' ')[0]} 👋`,
-    `<button class="btn bf" onclick="showAddHospital()">${ico('plus')} Add Hospital</button>`);
+    STATE.user.can_add_hospitals
+      ? `<button class="btn bf" onclick="showAddHospital()">${ico('plus')} Add Hospital</button>`
+      : `<div class="info-note">${ico('shield', 14)} Ask your administrator to grant hospital creation access.</div>`);
   setContent(`<div class="empty"><div class="loader"></div></div>`);
   try {
     const [hospData, logsData] = await Promise.all([
@@ -656,10 +663,20 @@ let hospState = { page:1, q:'', data:null };
 
 async function renderHospitals(page=1, q=hospState.q) {
   hospState.page=page; hospState.q=q;
+  if (STATE.role !== 'admin' && !STATE.user.can_add_hospitals) {
+    try {
+      const me = await api('GET', '/auth/me');
+      STATE.user = {...STATE.user, ...me};
+      STATE.role = me.role;
+      localStorage.setItem('agcr_user', JSON.stringify(STATE.user));
+    } catch(e) {
+      // ignore refresh errors and continue with existing permissions
+    }
+  }
   setPage('Hospital Records', 'Manage clinical trial sites',
-    `<div style="display:flex;gap:8px">
+    `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn bo" onclick="exportHospCSV()">${ico('download')} Export CSV</button>
-      <button class="btn bf" onclick="showAddHospital()">${ico('plus')} Add Hospital</button>
+      ${STATE.role === 'admin' || STATE.user.can_add_hospitals ? `<button class="btn bf" onclick="showAddHospital()">${ico('plus')} Add Hospital</button>` : `<div class="info-note">${ico('shield',14)} Hospital creation is locked. Admin permission required.</div>`}
     </div>`);
   setContent(`<div class="empty"><div class="loader"></div></div>`);
   try {
@@ -671,6 +688,7 @@ async function renderHospitals(page=1, q=hospState.q) {
 
 function renderHospTable(data) {
   const {items:rows, total, page, pages} = data;
+  const canManage = STATE.role === 'admin' || STATE.user.can_add_hospitals;
   const per = 10, from = total===0?0:(page-1)*per+1, to = Math.min(page*per,total);
   setContent(`
     <div class="dp">
@@ -686,9 +704,9 @@ function renderHospTable(data) {
       </div>
       <div class="tw">
         <table>
-          <thead><tr><th>#</th><th>Doctor Name</th><th>Hospital Name</th><th>Specialty</th><th>Contact</th><th>Email</th><th>SMO</th><th>Updated</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>Doctor Name</th><th>Hospital Name</th><th>Specialty</th><th>Contact</th><th>Email</th><th>SMO</th><th>Updated</th>${canManage?'<th>Actions</th>':''}</tr></thead>
           <tbody>
-            ${rows.length===0?`<tr><td colspan="9" class="empty">No hospitals found.${hospState.q?' Try a different search.':''}</td></tr>`
+            ${rows.length===0?`<tr><td colspan="${canManage?9:8}" class="empty">No hospitals found.${hospState.q?' Try a different search.':''}</td></tr>`
               :rows.map((r,i)=>`
                 <tr style="cursor:pointer" onclick="viewHospital('${escH(r.id)}')">
                   <td style="color:var(--g400);font-size:12px">${(page-1)*10+i+1}</td>
@@ -699,12 +717,11 @@ function renderHospTable(data) {
                   <td style="font-size:12.5px;color:var(--blue);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(r.email)}</td>
                   <td><span class="badge ${r.smo?'b-smo':'b-nosmo'}">${r.smo?'✓ Yes':'✗ No'}</span></td>
                   <td style="font-size:11.5px;color:var(--g400)">${fmtD(r.updated_at)}</td>
-                  <td onclick="event.stopPropagation()">
+                  ${canManage ? `<td onclick="event.stopPropagation()">
                     <div style="display:flex;gap:5px">
-                      <button class="btn bg bsm" onclick="editHospital('${escH(r.id)}')">${ico('edit')}</button>
-                      <button class="btn bd bsm" onclick="confirmDeleteHosp('${escH(r.id)}','${escH(r.hospital_name)}')">${ico('trash')}</button>
+                      ${STATE.role === 'admin' || r.created_by===STATE.user.user_id ? `<button class="btn bg bsm" onclick="editHospital('${escH(r.id)}')">${ico('edit')}</button><button class="btn bd bsm" onclick="confirmDeleteHosp('${escH(r.id)}','${escH(r.hospital_name)}')">${ico('trash')}</button>` : `<span style="font-size:12px;color:var(--g400)">View only</span>`}
                     </div>
-                  </td>
+                  </td>` : ''}
                 </tr>`).join('')
             }
           </tbody>
@@ -769,7 +786,13 @@ function toggleSMOFields() {
   document.getElementById('smo-fields').style.display = on ? 'grid' : 'none';
 }
 
-function showAddHospital() { showModal(hospFormHTML(null,'➕  Add New Hospital')); }
+function showAddHospital() {
+  if (STATE.role !== 'admin' && !STATE.user.can_add_hospitals) {
+    toast('Ask admin for permission to add hospitals.', 'err');
+    return;
+  }
+  showModal(hospFormHTML(null,'➕  Add New Hospital'));
+}
 
 async function editHospital(id) {
   try {
@@ -781,11 +804,12 @@ async function editHospital(id) {
 async function viewHospital(id) {
   try {
     const h = await api('GET', `/hospitals/${id}`);
+    const canEdit = STATE.role === 'admin' || (STATE.user.can_add_hospitals && h.created_by === STATE.user.user_id);
     showModal(`
       <div class="mo" onclick="event.stopPropagation()">
         <div class="mh"><span class="mt">🏥 Hospital Record</span>
           <div style="display:flex;gap:8px">
-            <button class="btn bgreen bsm" onclick="closeModal();editHospital('${escH(id)}')">${ico('edit')} Edit</button>
+            ${canEdit ? `<button class="btn bgreen bsm" onclick="closeModal();editHospital('${escH(id)}')">${ico('edit')} Edit</button>` : ''}
             <button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button>
           </div>
         </div>
@@ -923,7 +947,8 @@ function renderSettingsUI(u) {
       <!-- Profile Card -->
       <div class="profile-card" style="margin-bottom:18px">
         <div class="section-title">Profile Information</div>
-        <div class="profile-avatar-wrap">
+        <div class="profile-settings-grid">
+          <div class="profile-avatar-wrap">
           <div class="profile-avatar" id="settings-avatar">
             ${u.photo_url?`<img src="${escH(u.photo_url)}" alt="avatar"/>`:`<span>${initials(u.name)}</span>`}
           </div>
@@ -932,21 +957,24 @@ function renderSettingsUI(u) {
             <input type="file" accept="image/*" onchange="handlePhotoUpload(event)"/>
           </label>
         </div>
-        <div class="mg">
+        <div class="profile-settings-form mg">
           <div><label class="mfl">Full Name</label><input class="mfi" id="s-name" value="${escH(u.name||'')}"/></div>
           <div><label class="mfl">Email Address</label><input class="mfi" value="${escH(u.email||'')}" disabled style="opacity:.6;cursor:not-allowed"/></div>
           <div><label class="mfl">Phone Number</label><input class="mfi" id="s-phone" value="${escH(u.phone||'')}" placeholder="e.g. 9876543210"/></div>
           <div><label class="mfl">Role</label><input class="mfi" value="${escH(u.role||'')}" disabled style="opacity:.6;text-transform:capitalize"/></div>
           <div class="fw"><label class="mfl">Bio</label><textarea class="mfi" id="s-bio" rows="3" style="resize:vertical" placeholder="Tell us about yourself…">${escH(u.bio||'')}</textarea></div>
         </div>
-        <div style="margin-top:16px;display:flex;gap:10px">
-          <button class="btn bf" onclick="saveProfile()">${ico('check')} Save Changes</button>
-        </div>
-        <div class="sep"></div>
-        <div class="section-title" style="margin-top:4px">Account Details</div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button class="btn bf" onclick="saveProfile()">${ico('check')} Save Changes</button>
+      </div>
+      <div class="info-note">${u.role === 'admin' || u.can_add_hospitals ? 'You are allowed to add new hospitals.' : 'You currently have view-only access. Ask admin to grant hospital creation permission.'}</div>
+      <div class="sep"></div>
+      <div class="section-title" style="margin-top:4px">Account Details</div>
         <div style="display:grid;gap:10px">
           <div class="info-row"><span class="info-label">User ID:</span><span class="info-val code">${escH(u.id||'—')}</span></div>
           <div class="info-row"><span class="info-label">Status:</span><span class="info-val">${statusBadge(u.status)}</span></div>
+          <div class="info-row"><span class="info-label">Hospital Add Access:</span><span class="info-val">${u.role==='admin' ? 'Administrator' : u.can_add_hospitals ? 'Allowed by admin' : 'Not allowed'}</span></div>
           <div class="info-row"><span class="info-label">Last Login:</span><span class="info-val">${fmtDT(u.last_login)}</span></div>
           <div class="info-row"><span class="info-label">Member Since:</span><span class="info-val">${fmtD(u.created_at)}</span></div>
         </div>
@@ -1136,7 +1164,7 @@ async function renderAdminUsers(page=1, q=usersState.q, status=usersState.status
         </div>
         <div class="tw">
           <table>
-            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Hospitals</th><th>Last Login</th><th>Created</th><th>Actions</th></tr></thead>
+            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Create Access</th><th>Hospitals</th><th>Last Login</th><th>Created</th><th>Actions</th></tr></thead>
             <tbody>
               ${users.length===0?`<tr><td colspan="9" class="empty">No users found.</td></tr>`
                 :users.map((u,i)=>`
@@ -1153,6 +1181,7 @@ async function renderAdminUsers(page=1, q=usersState.q, status=usersState.status
                     <td style="font-size:12.5px;color:var(--blue)">${escH(u.email)}</td>
                     <td>${roleBadge(u.role)}</td>
                     <td>${statusBadge(u.status)}</td>
+                    <td>${u.can_add_hospitals ? '<span class="badge b-active">Allowed</span>' : '<span class="badge b-nosmo">No</span>'}</td>
                     <td style="font-size:13px;font-weight:600;color:var(--ink)">${u.hospital_count}</td>
                     <td style="font-size:11.5px;color:var(--g400)">${fmtD(u.last_login)}</td>
                     <td style="font-size:11.5px;color:var(--g400)">${fmtD(u.created_at)}</td>
@@ -1206,7 +1235,7 @@ async function viewUserDetail(uid) {
         <div class="mb">
           <!-- Profile Info -->
           <div class="grid-detail" style="margin-bottom:20px">
-            ${[['User ID',u.id,'code'],['Role',roleBadge(u.role),'html'],['Status',statusBadge(u.status),'html'],['Phone',u.phone||'—'],['Last Login',fmtDT(u.last_login)],['Member Since',fmtDT(u.created_at)],['Total Hospitals',u.hospital_count],['Total Logs',u.log_count]].map(([l,v,t])=>`
+            ${[['User ID',u.id,'code'],['Role',roleBadge(u.role),'html'],['Status',statusBadge(u.status),'html'],['Hospital Access',u.can_add_hospitals?'Allowed':'Not allowed','text'],['Phone',u.phone||'—'],['Last Login',fmtDT(u.last_login)],['Member Since',fmtDT(u.created_at)],['Total Hospitals',u.hospital_count],['Total Logs',u.log_count]].map(([l,v,t])=>`
               <div class="detail-item">
                 <div class="detail-label">${l}</div>
                 <div class="detail-val">${t==='code'?`<span class="code">${escH(v)}</span>`:t==='html'?v:escH(String(v||'—'))}</div>
@@ -1270,6 +1299,9 @@ function showCreateUser() {
           <div><label class="mfl">Role</label>
             <select class="mfs" id="cu-role"><option value="user">User</option><option value="admin">Admin</option></select>
           </div>
+          <div><label class="mfl">Hospital Add Access</label>
+            <select class="mfs" id="cu-perm"><option value="false">No</option><option value="true">Yes</option></select>
+          </div>
         </div>
       </div>
       <div class="mf"><button class="btn bg" onclick="closeModal()">Cancel</button><button class="btn bf" onclick="submitCreateUser()">${ico('plus')} Create User</button></div>
@@ -1289,7 +1321,8 @@ async function submitCreateUser() {
   if(!pw||pw.length<6){fe('pw','Password must be at least 6 characters');valid=false;}else fe('pw','');
   if(!valid) return;
   try {
-    await api('POST','/admin/users',{name,email,password:pw,phone,role});
+    const can_add_hospitals = document.getElementById('cu-perm')?.value === 'true';
+    await api('POST','/admin/users',{name,email,password:pw,phone,role,can_add_hospitals});
     toast(`User "${name}" created!`);
     closeModal();
     renderAdminUsers(usersState.page,usersState.q,usersState.status);
@@ -1319,6 +1352,12 @@ async function showEditUser(uid) {
                 <option value="hold"   ${u.status==='hold'?'selected':''}>On Hold</option>
               </select>
             </div>
+            <div><label class="mfl">Hospital Add Access</label>
+              <select class="mfs" id="eu-perm">
+                <option value="false" ${u.can_add_hospitals ? '' : 'selected'}>No</option>
+                <option value="true" ${u.can_add_hospitals ? 'selected' : ''}>Yes</option>
+              </select>
+            </div>
             <div><label class="mfl">New Password <span style="color:var(--g400);font-weight:400">(leave blank to keep current)</span></label>
               <input class="mfi" id="eu-pw" type="password" placeholder="Leave blank to keep unchanged"/>
             </div>
@@ -1342,6 +1381,9 @@ async function submitEditUser(uid) {
   if(phone) body.phone=phone;
   if(role)  body.role=role;
   if(status)body.status=status;
+  if(document.getElementById('eu-perm')) {
+    body.can_add_hospitals = document.getElementById('eu-perm').value === 'true';
+  }
   if(pw)    body.password=pw;
   try {
     const u = await api('PUT', `/admin/users/${uid}`, body);
@@ -1413,8 +1455,8 @@ async function submitResetPw(uid, name) {
 let adminHospState = {page:1, q:''};
 async function renderAdminHospitals(page=1, q=adminHospState.q) {
   adminHospState={page,q};
-  setPage('All Hospitals', 'Complete hospital registry (read-only view)',
-    `<button class="btn bo" onclick="exportHospCSV()">${ico('download')} Export CSV</button>`);
+  setPage('All Hospitals', 'Complete hospital registry',
+    `<button class="btn bo" onclick="exportHospCSV()">${ico('download')} Export CSV</button><button class="btn bf" onclick="showAddHospital()">${ico('plus')} Add Hospital</button>`);
   setContent(`<div class="empty"><div class="loader"></div></div>`);
   try {
     const data = await api('GET', `/hospitals?page=${page}&per_page=10&q=${encodeURIComponent(q)}`);
@@ -1431,9 +1473,9 @@ async function renderAdminHospitals(page=1, q=adminHospState.q) {
           </div>
         </div>
         <div class="tw"><table>
-          <thead><tr><th>#</th><th>Doctor</th><th>Hospital</th><th>Specialty</th><th>Contact</th><th>Email</th><th>SMO</th><th>Created By</th><th>Created</th><th>Updated</th></tr></thead>
+          <thead><tr><th>#</th><th>Doctor</th><th>Hospital</th><th>Specialty</th><th>Contact</th><th>Email</th><th>SMO</th><th>Created By</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead>
           <tbody>
-            ${rows.length===0?`<tr><td colspan="10" class="empty">No records found.</td></tr>`
+            ${rows.length===0?`<tr><td colspan="11" class="empty">No records found.</td></tr>`
               :rows.map((r,i)=>`<tr>
                 <td style="color:var(--g400);font-size:12px">${(page-1)*10+i+1}</td>
                 <td style="font-weight:600;font-size:13px">${escH(r.dr_name)}</td>
@@ -1445,6 +1487,7 @@ async function renderAdminHospitals(page=1, q=adminHospState.q) {
                 <td style="font-size:12px;font-weight:500">${escH(r.creator_name||r.created_by||'—')}</td>
                 <td style="font-size:11.5px;color:var(--g400)">${fmtD(r.created_at)}</td>
                 <td style="font-size:11.5px;color:var(--g400)">${fmtD(r.updated_at)}</td>
+                <td onclick="event.stopPropagation()"><div style="display:flex;gap:5px"><button class="btn bg bsm" onclick="editHospital('${escH(r.id)}')">${ico('edit')}</button><button class="btn bd bsm" onclick="confirmDeleteHosp('${escH(r.id)}','${escH(r.hospital_name)}')">${ico('trash')}</button></div></td>
               </tr>`).join('')
             }
           </tbody>

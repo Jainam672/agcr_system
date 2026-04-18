@@ -15,9 +15,22 @@ from database import engine, Base
 from routes import auth, users, hospitals, logs, admin
 from auth_utils import hash_password
 from models import User, UserRole, UserStatus
+from sqlalchemy import inspect, text
 
 # ── Create tables ──────────────────────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
+
+# ── Ensure database schema updates for legacy installs
+def ensure_user_permission_column():
+    inspector = inspect(engine)
+    if 'users' in inspector.get_table_names():
+        columns = [col['name'] for col in inspector.get_columns('users')]
+        if 'can_add_hospitals' not in columns:
+            with engine.connect() as conn:
+                conn.execute(text('ALTER TABLE users ADD COLUMN can_add_hospitals INTEGER NOT NULL DEFAULT 0'))
+                conn.commit()
+
+ensure_user_permission_column()
 
 # ── Initialize default admin user ──────────────────────────────────────────
 def init_admin():
@@ -77,8 +90,13 @@ if os.path.exists(os.path.join(FRONTEND, "static")):
     app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND, "static")), name="static")
 
 @app.get("/", response_class=HTMLResponse)
-@app.get("/{full_path:path}", response_class=HTMLResponse)
+@app.get("/{full_path:path}")
 async def serve_frontend(full_path: str = ""):
+    if full_path:
+        requested = os.path.join(FRONTEND, full_path)
+        if os.path.exists(requested) and os.path.isfile(requested):
+            return FileResponse(requested)
+
     index = os.path.join(FRONTEND, "index.html")
     if os.path.exists(index):
         with open(index, encoding="utf-8") as f:

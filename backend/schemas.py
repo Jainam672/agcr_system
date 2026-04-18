@@ -33,6 +33,7 @@ class TokenResponse(BaseModel):
     role:          str
     status:        str
     photo_url:     Optional[str] = None
+    can_add_hospitals: bool = False
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
@@ -63,6 +64,7 @@ class UserOut(BaseModel):
     phone:      Optional[str]
     bio:        Optional[str]
     photo_url:  Optional[str]
+    can_add_hospitals: bool = False
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     last_login: Optional[datetime]
@@ -77,6 +79,7 @@ class AdminUserCreate(BaseModel):
     name:     str = Field(min_length=2)
     phone:    Optional[str] = None
     role:     UserRole = UserRole.user
+    can_add_hospitals: bool = False
 
 class AdminUserUpdate(BaseModel):
     name:     Optional[str] = None
@@ -84,6 +87,7 @@ class AdminUserUpdate(BaseModel):
     phone:    Optional[str] = None
     status:   Optional[UserStatus] = None
     role:     Optional[UserRole] = None
+    can_add_hospitals: Optional[bool] = None
     password: Optional[str] = None
 
 

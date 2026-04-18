@@ -52,13 +52,14 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
     token = create_token({"sub": user.id, "role": user.role.value, "email": user.email})
     return TokenResponse(
-        access_token = token,
-        user_id      = user.id,
-        name         = user.name,
-        email        = user.email,
-        role         = user.role.value,
-        status       = user.status.value,
-        photo_url    = user.photo_url,
+        access_token        = token,
+        user_id             = user.id,
+        name                = user.name,
+        email               = user.email,
+        role                = user.role.value,
+        status              = user.status.value,
+        photo_url           = user.photo_url,
+        can_add_hospitals   = bool(user.can_add_hospitals),
     )
 
 
@@ -82,13 +83,14 @@ def change_password(payload: ChangePasswordRequest, db: Session = Depends(get_db
 @router.get("/me")
 def me(current_user=Depends(get_current_user)):
     return {
-        "id":        current_user.id,
-        "name":      current_user.name,
-        "email":     current_user.email,
-        "role":      current_user.role.value,
-        "status":    current_user.status.value,
-        "phone":     current_user.phone,
-        "bio":       current_user.bio,
-        "photo_url": current_user.photo_url,
-        "last_login":current_user.last_login,
+        "id":                current_user.id,
+        "name":              current_user.name,
+        "email":             current_user.email,
+        "role":              current_user.role.value,
+        "status":            current_user.status.value,
+        "phone":             current_user.phone,
+        "bio":               current_user.bio,
+        "photo_url":         current_user.photo_url,
+        "can_add_hospitals": bool(current_user.can_add_hospitals),
+        "last_login":        current_user.last_login,
     }

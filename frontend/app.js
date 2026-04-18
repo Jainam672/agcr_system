@@ -1,0 +1,1179 @@
+
+    // ═══════════════════════════════════════════════════════════════════
+    // AGCR FRONTEND — Pure JS + Fetch API
+    // ═══════════════════════════════════════════════════════════════════
+
+    const API = '/api';
+    let STATE = {
+      token: localStorage.getItem('agcr_token'),
+      user: JSON.parse(localStorage.getItem('agcr_user') || 'null'),
+      role: null,
+      currentView: 'dash',
+    };
+
+    // ── API Helper ──────────────────────────────────────────────────
+    async function api(method, path, body = null, isForm = false) {
+      const headers = { 'Authorization': `Bearer ${STATE.token}` };
+      if (body && !isForm) headers['Content-Type'] = 'application/json';
+      const opts = { method, headers };
+      if (body) opts.body = isForm ? body : JSON.stringify(body);
+      try {
+        const res = await fetch(API + path, opts);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+        return data;
+      } catch (e) {
+        throw e;
+      }
+    }
+
+    // ── Toast ───────────────────────────────────────────────────────
+    function toast(msg, type = 'ok') {
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = {
+        ok: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`,
+        err: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+        info: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/></svg>`,
+      };
+      t.innerHTML = `<span style="color:${type === 'ok' ? 'var(--green)' : type === 'err' ? 'var(--red)' : 'var(--blue)'};display:flex">${icons[type] || icons.ok}</span><span>${msg}</span>`;
+      t.onclick = () => t.remove();
+      document.getElementById('toast-container').appendChild(t);
+      setTimeout(() => t.remove(), 3500);
+    }
+
+    // ── Modal ───────────────────────────────────────────────────────
+    function showModal(html, opts = {}) {
+      const c = document.getElementById('modal-container');
+      c.innerHTML = `<div class="ov" id="active-modal" onclick="closeModalOnBg(event)">${html}</div>`;
+    }
+    function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
+    function closeModalOnBg(e) { if (e.target.id === 'active-modal') closeModal(); }
+
+    // ── Icons ───────────────────────────────────────────────────────
+    const ICO = {
+      home: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+      list: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+      activity: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+      users: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+      shield: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+      settings: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+      hospital: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+      plus: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+      edit: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+      trash: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+      eye: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+      download: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+      search: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+      x: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+      lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+      user: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+      chevL: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>`,
+      chevR: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>`,
+      link: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+      phone: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.18 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l1.47-1.47a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+      mail: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+      check: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`,
+      pause: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`,
+      play: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
+      key: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>`,
+      camera: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+    };
+
+    function ico(name, size = 14) {
+      const svg = ICO[name] || '';
+      return svg.replace(/width="\d+" height="\d+"/, `width="${size}" height="${size}"`);
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────
+    function fmtD(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+    function fmtDT(d) { if (!d) return '—'; return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    function initials(name) { if (!name) return 'U'; return name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase(); }
+    function badgeClass(action) { return 'badge b-' + (action || '').toLowerCase(); }
+    function statusBadge(s) { return `<span class="badge b-${s}">${s}</span>`; }
+    function roleBadge(r) { return `<span class="badge b-${r}">${r}</span>`; }
+    function actionIcon(action) {
+      const a = (action || '').toUpperCase();
+      if (['CREATE', 'USER_CREATE'].includes(a)) return `<div class="ai ai-c">${ico('plus', 13)}</div>`;
+      if (['UPDATE', 'USER_UPDATE', 'PROFILE_UPDATE', 'PASSWORD_CHANGE'].includes(a)) return `<div class="ai ai-u">${ico('edit', 13)}</div>`;
+      if (['DELETE', 'USER_DELETE'].includes(a)) return `<div class="ai ai-d">${ico('trash', 13)}</div>`;
+      return `<div class="ai ai-l">${ico('activity', 13)}</div>`;
+    }
+
+    function escH(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ── Pagination helper ───────────────────────────────────────────
+    function pgHTML(page, pages, onNav) {
+      if (pages <= 1) return '';
+      let btns = `<button class="pb" ${page <= 1 ? 'disabled' : ''} onclick="${onNav}(${page - 1})">${ico('chevL')}</button>`;
+      for (let i = 1; i <= pages; i++) btns += `<button class="pb${page === i ? ' on' : ''}" onclick="${onNav}(${i})">${i}</button>`;
+      btns += `<button class="pb" ${page >= pages ? 'disabled' : ''} onclick="${onNav}(${page + 1})">${ico('chevR')}</button>`;
+      return btns;
+    }
+
+    // ── Login ───────────────────────────────────────────────────────
+    let loginTab = 'user';
+    function switchTab(t) {
+      loginTab = t;
+      document.getElementById('tab-user').classList.toggle('on', t === 'user');
+      document.getElementById('tab-admin').classList.toggle('on', t === 'admin');
+    }
+
+    function togglePw(id, btn) {
+      const inp = document.getElementById(id);
+      const isText = inp.type === 'text';
+      inp.type = isText ? 'password' : 'text';
+      btn.innerHTML = isText
+        ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`
+        : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const pw = document.getElementById('login-pw').value;
+      const errEl = document.getElementById('login-err');
+      const btn = document.getElementById('login-btn');
+      if (!email || !pw) { errEl.style.display = 'flex'; errEl.textContent = 'Please enter email and password.'; return; }
+      errEl.style.display = 'none';
+      btn.disabled = true; btn.textContent = 'Verifying…';
+      try {
+        const data = await api('POST', '/auth/login', { email, password: pw, role: loginTab });
+        STATE.token = data.access_token;
+        STATE.user = data;
+        STATE.role = data.role;
+        localStorage.setItem('agcr_token', data.access_token);
+        localStorage.setItem('agcr_user', JSON.stringify(data));
+        initApp();
+      } catch (e) {
+        errEl.style.display = 'flex'; errEl.innerHTML = `${ico('shield', 11)} ${escH(e.message)}`;
+        btn.disabled = false; btn.textContent = 'Sign In';
+      }
+    }
+
+    function showForgot() {
+      showModal(`
+    <div class="mo mo-sm" onclick="event.stopPropagation()">
+      <div class="mh"><span class="mt">Reset Password</span><button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button></div>
+      <div class="mb">
+        <p style="font-size:14px;color:var(--g600);line-height:1.7">Please contact your administrator to reset your password, or email <strong>adminagcr2024@gmail.com</strong> with your registered email address.</p>
+      </div>
+      <div class="mf"><button class="btn bf" onclick="closeModal()">OK</button></div>
+    </div>
+  `);
+    }
+
+    // ── Init App ────────────────────────────────────────────────────
+    function initApp() {
+      document.getElementById('login-page').style.display = 'none';
+      const appEl = document.getElementById('app');
+      appEl.style.display = 'flex';
+
+      const u = STATE.user;
+      const isAdmin = u.role === 'admin';
+
+      // Sidebar user info
+      const avEl = document.getElementById('sb-avatar');
+      if (u.photo_url) {
+        avEl.innerHTML = `<img src="${escH(u.photo_url)}" alt="avatar"/>`;
+      } else {
+        avEl.textContent = initials(u.name);
+      }
+      if (isAdmin) avEl.style.background = 'var(--amber)';
+      document.getElementById('sb-name').textContent = u.name;
+      document.getElementById('sb-email').textContent = isAdmin ? 'Administrator' : u.email;
+      if (isAdmin) document.getElementById('sb-email').style.color = '#fcd34d';
+      document.getElementById('sb-role-label').textContent = isAdmin ? 'Admin Console' : 'Clinical Trial Platform';
+
+      // Nav items
+      const navItems = isAdmin ? [
+        { id: 'dash', icon: 'home', label: 'Overview' },
+        { id: 'users', icon: 'users', label: 'User Management' },
+        { id: 'hospitals', icon: 'list', label: 'All Hospitals' },
+        { id: 'audit', icon: 'activity', label: 'Audit Logs' },
+      ] : [
+        { id: 'dash', icon: 'home', label: 'Dashboard' },
+        { id: 'hospitals', icon: 'list', label: 'Hospital Records' },
+        { id: 'activity', icon: 'activity', label: 'My Activity' },
+        { id: 'settings', icon: 'settings', label: 'Settings' },
+      ];
+
+      const nav = document.getElementById('sb-nav');
+      nav.innerHTML = navItems.map(n => `
+    <button class="ni${STATE.currentView === n.id ? ' on' : ''}" id="nav-${n.id}" onclick="navigate('${n.id}')">
+      ${ico(n.icon, 15)} ${escH(n.label)}
+    </button>
+  `).join('');
+
+      navigate(STATE.currentView);
+    }
+
+    function navigate(view) {
+      STATE.currentView = view;
+      // Update nav highlight
+      document.querySelectorAll('.ni').forEach(n => n.classList.remove('on'));
+      const navBtn = document.getElementById('nav-' + view);
+      if (navBtn) navBtn.classList.add('on');
+      // Render view
+      const isAdmin = STATE.role === 'admin';
+      if (isAdmin) {
+        if (view === 'dash') renderAdminDash();
+        else if (view === 'users') renderAdminUsers();
+        else if (view === 'hospitals') renderAdminHospitals();
+        else if (view === 'audit') renderAuditLogs();
+      } else {
+        if (view === 'dash') renderUserDash();
+        else if (view === 'hospitals') renderHospitals();
+        else if (view === 'activity') renderMyActivity();
+        else if (view === 'settings') renderSettings();
+      }
+    }
+
+    function setPage(title, sub, actionsHTML = '') {
+      document.getElementById('page-title').textContent = title;
+      document.getElementById('page-sub').textContent = sub;
+      document.getElementById('topbar-actions').innerHTML = actionsHTML;
+    }
+    function setContent(html) { document.getElementById('page-content').innerHTML = html; }
+
+    // ── Logout ──────────────────────────────────────────────────────
+    async function doLogout() {
+      try { await api('POST', '/auth/logout'); } catch (e) { }
+      STATE.token = null; STATE.user = null; STATE.role = null;
+      localStorage.removeItem('agcr_token'); localStorage.removeItem('agcr_user');
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('login-page').style.display = 'grid';
+      document.getElementById('login-email').value = ''; document.getElementById('login-pw').value = '';
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // USER DASHBOARD
+    // ─────────────────────────────────────────────────────────────────
+    async function renderUserDash() {
+      setPage('Dashboard', `Welcome back, ${STATE.user.name.split(' ')[0]} 👋`,
+        `<button class="btn bf" onclick="showAddHospital()">${ico('plus')} Add Hospital</button>`);
+      setContent(`<div class="empty"><div class="loader"></div></div>`);
+      try {
+        const [hospData, logsData] = await Promise.all([
+          api('GET', '/hospitals?per_page=100'),
+          api('GET', '/logs/my?per_page=5')
+        ]);
+        const h = hospData.items || [];
+        const logs = logsData.items || [];
+        const mine = h.filter(x => x.created_by === STATE.user.user_id).length;
+        const smo = h.filter(x => x.smo).length;
+        const specs = new Set(h.map(x => x.specialty).filter(Boolean)).size;
+        setContent(`
+      <div class="sg">
+        ${statCard('hospital', 'Total Hospitals', h.length, '#dbeafe', '#2563eb', mine + ' added by you')}
+        ${statCard('link', 'SMO Attached', smo, '#d1fae5', '#059669', (h.length - smo) + ' without SMO')}
+        ${statCard('activity', 'Specialties', specs, '#fef3c7', '#d97706', 'unique specialties')}
+        ${statCard('shield', 'My Records', mine, '#ede9fe', '#7c3aed', 'created by you')}
+      </div>
+      <div class="dp">
+        <div class="ph"><span class="pt">Recent Activity</span></div>
+        <div style="padding:0 20px 8px">
+          ${logs.length === 0
+            ? `<p style="padding:20px;font-size:13px;color:var(--g400)">No activity yet. Add a hospital to get started.</p>`
+            : logs.map(l => `
+              <div class="ar">
+                ${actionIcon(l.action)}
+                <div><div style="font-size:13px;font-weight:500"><span class="${badgeClass(l.action)}" style="margin-right:7px">${l.action}</span><strong>${escH(l.hospital_name || '—')}</strong></div>
+                <div class="am">${escH(l.detail || '')} · ${fmtDT(l.ts)}</div></div>
+              </div>`).join('')
+          }
+        </div>
+      </div>
+    `);
+      } catch (e) { setContent(`<div class="empty">Error loading dashboard: ${escH(e.message)}</div>`); }
+    }
+
+    function statCard(icon, label, val, bg, ic, sub = '') {
+      return `<div class="sc"><div class="sci" style="background:${bg};color:${ic}">${ico(icon, 18)}</div>
+    <div class="scv">${val}</div><div class="scl">${escH(label)}</div>${sub ? `<div class="scd">${escH(sub)}</div>` : ''}</div>`;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // HOSPITALS (User)
+    // ─────────────────────────────────────────────────────────────────
+    let hospState = { page: 1, q: '', data: null };
+
+    async function renderHospitals(page = 1, q = hospState.q) {
+      hospState.page = page; hospState.q = q;
+      setPage('Hospital Records', 'Manage clinical trial sites',
+        `<div style="display:flex;gap:8px">
+      <button class="btn bo" onclick="exportHospCSV()">${ico('download')} Export CSV</button>
+      <button class="btn bf" onclick="showAddHospital()">${ico('plus')} Add Hospital</button>
+    </div>`);
+      setContent(`<div class="empty"><div class="loader"></div></div>`);
+      try {
+        const data = await api('GET', `/hospitals?page=${page}&per_page=10&q=${encodeURIComponent(q)}`);
+        hospState.data = data;
+        renderHospTable(data);
+      } catch (e) { setContent(`<div class="empty">Error: ${escH(e.message)}</div>`); }
+    }
+
+    function renderHospTable(data) {
+      const { items: rows, total, page, pages } = data;
+      const per = 10, from = total === 0 ? 0 : (page - 1) * per + 1, to = Math.min(page * per, total);
+      setContent(`
+    <div class="dp">
+      <div class="ph">
+        <span class="pt">All Hospitals</span>
+        <div class="pa">
+          <div class="si-wrap">
+            <span class="si-ico">${ico('search', 13)}</span>
+            <input class="si" id="hosp-search" placeholder="Search doctor, hospital, specialty…" value="${escH(hospState.q)}" oninput="debSearch(this.value)"/>
+          </div>
+          ${hospState.q ? `<button class="btn bg bsm" onclick="renderHospitals(1,'')">${ico('x')} Clear</button>` : ''}
+        </div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>#</th><th>Doctor Name</th><th>Hospital Name</th><th>Specialty</th><th>Contact</th><th>Email</th><th>SMO</th><th>Updated</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${rows.length === 0 ? `<tr><td colspan="9" class="empty">No hospitals found.${hospState.q ? ' Try a different search.' : ''}</td></tr>`
+          : rows.map((r, i) => `
+                <tr style="cursor:pointer" onclick="viewHospital('${escH(r.id)}')">
+                  <td style="color:var(--g400);font-size:12px">${(page - 1) * 10 + i + 1}</td>
+                  <td><div style="font-weight:600;font-size:13px">${escH(r.dr_name)}</div></td>
+                  <td><div style="font-weight:500;font-size:13px">${escH(r.hospital_name)}</div></td>
+                  <td><span class="pill">${escH(r.specialty)}</span></td>
+                  <td style="font-size:12.5px;color:var(--g600)">${escH(r.contact_number)}</td>
+                  <td style="font-size:12.5px;color:var(--blue);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(r.email)}</td>
+                  <td><span class="badge ${r.smo ? 'b-smo' : 'b-nosmo'}">${r.smo ? '✓ Yes' : '✗ No'}</span></td>
+                  <td style="font-size:11.5px;color:var(--g400)">${fmtD(r.updated_at)}</td>
+                  <td onclick="event.stopPropagation()">
+                    <div style="display:flex;gap:5px">
+                      <button class="btn bg bsm" onclick="editHospital('${escH(r.id)}')">${ico('edit')}</button>
+                      <button class="btn bd bsm" onclick="confirmDeleteHosp('${escH(r.id)}','${escH(r.hospital_name)}')">${ico('trash')}</button>
+                    </div>
+                  </td>
+                </tr>`).join('')
+        }
+          </tbody>
+        </table>
+      </div>
+      <div class="pg">
+        <span class="pgi">Showing ${from}–${to} of ${total}</span>
+        <div class="pgb">${pgHTML(page, pages, 'renderHospitals')}</div>
+      </div>
+    </div>
+  `);
+    }
+
+    let debTimer;
+    function debSearch(val) { clearTimeout(debTimer); debTimer = setTimeout(() => renderHospitals(1, val), 350); }
+
+    const SPECS = ["Oncology", "Cardiology", "Neurology", "Endocrinology", "Orthopedics", "Dermatology", "Gastroenterology", "Pulmonology", "Nephrology", "Ophthalmology", "Psychiatry", "Pediatrics", "Rheumatology", "Hematology", "Infectious Disease", "Other"];
+
+    function hospFormHTML(rec = null, title = '') {
+      const f = rec || {};
+      return `
+    <div class="mo" onclick="event.stopPropagation()">
+      <div class="mh"><span class="mt">${escH(title)}</span><button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button></div>
+      <div class="mb">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--g100)">
+          <div style="width:28px;height:28px;background:var(--pale);border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--sage)">${ico('user', 14)}</div>
+          <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--g500)">Doctor &amp; Hospital Information</span>
+        </div>
+        <div class="mg">
+          <div><label class="mfl">Doctor Name *</label><input class="mfi" id="hf-drname" placeholder="e.g. Dr. Anjali Verma" value="${escH(f.dr_name || '')}"/><div id="e-drname" class="em" style="display:none"></div></div>
+          <div><label class="mfl">Hospital Name *</label><input class="mfi" id="hf-hospital" placeholder="e.g. Apollo Clinical Center" value="${escH(f.hospital_name || '')}"/><div id="e-hospital" class="em" style="display:none"></div></div>
+          <div><label class="mfl">Specialty *</label>
+            <select class="mfs" id="hf-specialty">
+              <option value="">— Select Specialty —</option>
+              ${SPECS.map(s => `<option value="${s}"${(f.specialty || '') == s ? ' selected' : ''}>${s}</option>`).join('')}
+            </select><div id="e-specialty" class="em" style="display:none"></div>
+          </div>
+          <div><label class="mfl">Contact Number *</label><input class="mfi" id="hf-phone" type="tel" placeholder="e.g. 9876543210" value="${escH(f.contact_number || '')}"/><div id="e-phone" class="em" style="display:none"></div></div>
+          <div class="fw"><label class="mfl">Email ID *</label><input class="mfi" id="hf-email" type="email" placeholder="e.g. doctor@hospital.com" value="${escH(f.email || '')}"/><div id="e-email" class="em" style="display:none"></div></div>
+          <div class="fw smo-box">
+            <div class="smo-hdr">
+              <span class="smo-label">${ico('link', 16)} Attached with SMO?</span>
+              <label class="toggle"><input type="checkbox" id="hf-smo" onchange="toggleSMOFields()" ${f.smo ? 'checked' : ''}/><span class="tslider"></span></label>
+            </div>
+            <div id="smo-fields" style="display:${f.smo ? 'grid' : 'none'};margin-top:14px;grid-template-columns:1fr 1fr;gap:12px">
+              <div><label class="mfl">SMO Name *</label><input class="mfi" id="hf-smoname" placeholder="e.g. MedTrials SMO" value="${escH(f.smo_name || '')}"/><div id="e-smoname" class="em" style="display:none"></div></div>
+              <div><label class="mfl">Contact Person *</label><input class="mfi" id="hf-smocontact" placeholder="e.g. Ramesh Shah" value="${escH(f.smo_contact || '')}"/><div id="e-smocontact" class="em" style="display:none"></div></div>
+              <div><label class="mfl">SMO Phone *</label><input class="mfi" id="hf-smophone" type="tel" placeholder="e.g. 9800001111" value="${escH(f.smo_phone || '')}"/><div id="e-smophone" class="em" style="display:none"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mf">
+        <button class="btn bg" onclick="closeModal()">Cancel</button>
+        <button class="btn bf" onclick="submitHospForm('${escH(rec ? rec.id : '')}')">${ico(rec ? 'check' : 'plus')} ${rec ? 'Save Changes' : 'Add Hospital'}</button>
+      </div>
+    </div>`;
+    }
+
+    function toggleSMOFields() {
+      const on = document.getElementById('hf-smo').checked;
+      document.getElementById('smo-fields').style.display = on ? 'grid' : 'none';
+    }
+
+    function showAddHospital() { showModal(hospFormHTML(null, '➕  Add New Hospital')); }
+
+    async function editHospital(id) {
+      try {
+        const h = await api('GET', `/hospitals/${id}`);
+        showModal(hospFormHTML(h, '✏️  Edit Hospital Record'));
+      } catch (e) { toast('Failed to load hospital: ' + e.message, 'err'); }
+    }
+
+    async function viewHospital(id) {
+      try {
+        const h = await api('GET', `/hospitals/${id}`);
+        showModal(`
+      <div class="mo" onclick="event.stopPropagation()">
+        <div class="mh"><span class="mt">🏥 Hospital Record</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn bgreen bsm" onclick="closeModal();editHospital('${escH(id)}')">${ico('edit')} Edit</button>
+            <button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button>
+          </div>
+        </div>
+        <div class="mb">
+          <div class="grid-detail" style="margin-bottom:20px">
+            ${[['Doctor Name', h.dr_name], ['Hospital Name', h.hospital_name], ['Specialty', h.specialty], ['Contact Number', h.contact_number]].map(([l, v]) => `<div class="detail-item"><div class="detail-label">${l}</div><div class="detail-val">${escH(v || '—')}</div></div>`).join('')}
+            <div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Email ID</div><div class="detail-val">${escH(h.email || '—')}</div></div>
+          </div>
+          <div style="background:var(--g50);border:1.5px solid var(--g200);border-radius:var(--r2);padding:16px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:${h.smo ? 14 : 0}px">
+              ${ico('link', 15)}<span style="font-size:13px;font-weight:600;color:var(--g700)">SMO Attachment:</span>
+              <span class="badge ${h.smo ? 'b-smo' : 'b-nosmo'}">${h.smo ? '✓ Yes' : '✗ No'}</span>
+            </div>
+            ${h.smo ? `<div class="grid-detail">
+              <div class="detail-item"><div class="detail-label">SMO Name</div><div class="detail-val">${escH(h.smo_name || '—')}</div></div>
+              <div class="detail-item"><div class="detail-label">Contact Person</div><div class="detail-val">${escH(h.smo_contact || '—')}</div></div>
+              <div class="detail-item"><div class="detail-label">SMO Phone</div><div class="detail-val">${escH(h.smo_phone || '—')}</div></div>
+            </div>`: ''}
+          </div>
+          <div style="margin-top:14px;display:flex;gap:16px;font-size:11.5px;color:var(--g400)">
+            <span>Created: ${fmtDT(h.created_at)}</span><span>Updated: ${fmtDT(h.updated_at)}</span>
+            ${h.creator_name ? `<span>By: ${escH(h.creator_name)}</span>` : ''}
+          </div>
+        </div>
+      </div>`);
+      } catch (e) { toast('Failed to load: ' + e.message, 'err'); }
+    }
+
+    function fieldErr(id, msg) { const el = document.getElementById('e-' + id); el.textContent = msg; el.style.display = msg ? 'flex' : 'none'; document.getElementById('hf-' + id)?.classList.toggle('err', !!msg); }
+
+    async function submitHospForm(existingId) {
+      const drname = document.getElementById('hf-drname').value.trim();
+      const hospital = document.getElementById('hf-hospital').value.trim();
+      const specialty = document.getElementById('hf-specialty').value;
+      const phone = document.getElementById('hf-phone').value.trim();
+      const email = document.getElementById('hf-email').value.trim();
+      const smo = document.getElementById('hf-smo').checked;
+      const smoname = document.getElementById('hf-smoname')?.value.trim() || '';
+      const smocontact = document.getElementById('hf-smocontact')?.value.trim() || '';
+      const smophone = document.getElementById('hf-smophone')?.value.trim() || '';
+
+      let valid = true;
+      if (!drname) { fieldErr('drname', 'Doctor name required'); valid = false; } else fieldErr('drname', '');
+      if (!hospital) { fieldErr('hospital', 'Hospital name required'); valid = false; } else fieldErr('hospital', '');
+      if (!specialty) { fieldErr('specialty', 'Specialty required'); valid = false; } else fieldErr('specialty', '');
+      if (!phone) { fieldErr('phone', 'Contact number required'); valid = false; } else fieldErr('phone', '');
+      if (!email) { fieldErr('email', 'Email required'); valid = false; } else fieldErr('email', '');
+      if (smo && !smoname) { fieldErr('smoname', 'SMO name required'); valid = false; } else fieldErr('smoname', '');
+      if (smo && !smocontact) { fieldErr('smocontact', 'Contact person required'); valid = false; } else fieldErr('smocontact', '');
+      if (smo && !smophone) { fieldErr('smophone', 'SMO phone required'); valid = false; } else fieldErr('smophone', '');
+      if (!valid) return;
+
+      const body = { dr_name: drname, hospital_name: hospital, specialty, contact_number: phone, email, smo, smo_name: smoname, smo_contact: smocontact, smo_phone: smophone };
+      try {
+        if (existingId) { await api('PUT', `/hospitals/${existingId}`, body); toast('Hospital updated successfully!'); }
+        else { await api('POST', '/hospitals', body); toast('Hospital added successfully!'); }
+        closeModal();
+        if (STATE.currentView === 'dash') renderUserDash();
+        else renderHospitals(hospState.page, hospState.q);
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    function confirmDeleteHosp(id, name) {
+      showModal(`
+    <div class="mo mo-sm" onclick="event.stopPropagation()">
+      <div class="mh"><span class="mt" style="color:var(--red)">Confirm Delete</span><button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button></div>
+      <div class="mb"><p style="font-size:14px;color:var(--g600);line-height:1.6">Are you sure you want to delete <strong>"${escH(name)}"</strong>?<br/>This action cannot be undone.</p></div>
+      <div class="mf"><button class="btn bg" onclick="closeModal()">Cancel</button><button class="btn bd" onclick="deleteHosp('${escH(id)}','${escH(name)}')">${ico('trash')} Delete</button></div>
+    </div>`);
+    }
+
+    async function deleteHosp(id, name) {
+      try {
+        await api('DELETE', `/hospitals/${id}`);
+        toast(`Hospital "${name}" deleted.`, 'err');
+        closeModal();
+        renderHospitals(hospState.page, hospState.q);
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    async function exportHospCSV() {
+      try {
+        const data = await api('GET', '/hospitals?per_page=1000');
+        const rows = data.items || [];
+        const cols = ['ID', 'Doctor', 'Hospital', 'Specialty', 'Phone', 'Email', 'SMO?', 'SMO Name', 'SMO Contact', 'SMO Phone', 'Created', 'Updated'];
+        const csv = [cols, ...rows.map(r => [r.id, r.dr_name, r.hospital_name, r.specialty, r.contact_number, r.email, r.smo ? 'Yes' : 'No', r.smo_name || '', r.smo_contact || '', r.smo_phone || '', fmtD(r.created_at), fmtD(r.updated_at)])].map(row => row.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'agcr_hospitals.csv'; a.click();
+        toast('Exported to CSV!');
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // MY ACTIVITY
+    // ─────────────────────────────────────────────────────────────────
+    async function renderMyActivity(page = 1) {
+      setPage('My Activity', 'Your actions and changes');
+      setContent(`<div class="empty"><div class="loader"></div></div>`);
+      try {
+        const data = await api('GET', `/logs/my?page=${page}&per_page=20`);
+        const { items: logs, total, pages } = data;
+        setContent(`
+      <div class="dp">
+        <div class="ph"><span class="pt">Actions by ${escH(STATE.user.name)}</span><span style="font-size:12px;color:var(--g400)">${total} total</span></div>
+        <div style="padding:0 20px 8px">
+          ${logs.length === 0
+            ? `<p style="padding:20px;font-size:13px;color:var(--g400)">No activity logged yet.</p>`
+            : logs.map(l => `<div class="ar">${actionIcon(l.action)}<div style="flex:1">
+                <div style="font-size:13px;font-weight:500"><span class="${badgeClass(l.action)}" style="margin-right:7px">${l.action}</span><strong>${escH(l.hospital_name || '—')}</strong>${l.hospital_id ? ` <span class="code">${escH(l.hospital_id)}</span>` : ''}</div>
+                <div class="am">${escH(l.detail || '')} · ${fmtDT(l.ts)}</div>
+              </div></div>`).join('')
+          }
+        </div>
+        ${pages > 1 ? `<div class="pg"><span class="pgi">Page ${page} of ${pages}</span><div class="pgb">${pgHTML(page, pages, 'renderMyActivity')}</div></div>` : ''}
+      </div>`);
+      } catch (e) { setContent(`<div class="empty">Error: ${escH(e.message)}</div>`); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // SETTINGS (User Profile)
+    // ─────────────────────────────────────────────────────────────────
+    async function renderSettings() {
+      setPage('Settings', 'Manage your profile and account');
+      setContent(`<div class="empty"><div class="loader"></div></div>`);
+      try {
+        const u = await api('GET', '/users/me');
+        STATE.user = { ...STATE.user, ...u };
+        localStorage.setItem('agcr_user', JSON.stringify(STATE.user));
+        renderSettingsUI(u);
+      } catch (e) { setContent(`<div class="empty">Error: ${escH(e.message)}</div>`); }
+    }
+
+    function renderSettingsUI(u) {
+      setContent(`
+    <div style="width:100%;">
+      <!-- Profile Card -->
+      <div class="profile-card" style="margin-bottom:18px">
+        <div class="section-title">Profile Information</div>
+        <div class="profile-settings-grid">
+          <div class="profile-avatar-wrap">
+            <div class="profile-avatar" id="settings-avatar">
+              ${u.photo_url ? `<img src="${escH(u.photo_url)}" alt="avatar"/>` : `<span>${initials(u.name)}</span>`}
+            </div>
+            <label class="btn bo photo-btn">
+              ${ico('camera')} Change Photo
+              <input type="file" accept="image/*" onchange="handlePhotoUpload(event)"/>
+            </label>
+          </div>
+          <div class="profile-settings-form">
+            <div><label class="mfl">Full Name</label><input class="mfi" id="s-name" value="${escH(u.name || '')}"/></div>
+            <div><label class="mfl">Email Address</label><input class="mfi" value="${escH(u.email || '')}" disabled style="opacity:.6;cursor:not-allowed"/></div>
+            <div><label class="mfl">Phone Number</label><input class="mfi" id="s-phone" value="${escH(u.phone || '')}" placeholder="e.g. 9876543210"/></div>
+            <div><label class="mfl">Role</label><input class="mfi" value="${escH(u.role || '')}" disabled style="opacity:.6;text-transform:capitalize"/></div>
+            <div class="fw"><label class="mfl">Bio</label><textarea class="mfi" id="s-bio" rows="3" style="resize:vertical" placeholder="Tell us about yourself…">${escH(u.bio || '')}</textarea></div>
+            <div style="margin-top:8px; display:flex;justify-content:flex-start;">
+              <button class="btn bf" onclick="saveProfile()">${ico('check')} Save Changes</button>
+            </div>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="section-title" style="margin-top:4px">Account Details</div>
+        <div style="display:grid;gap:10px">
+          <div class="info-row"><span class="info-label">User ID:</span><span class="info-val code">${escH(u.id || '—')}</span></div>
+          <div class="info-row"><span class="info-label">Status:</span><span class="info-val">${statusBadge(u.status)}</span></div>
+          <div class="info-row"><span class="info-label">Last Login:</span><span class="info-val">${fmtDT(u.last_login)}</span></div>
+          <div class="info-row"><span class="info-label">Member Since:</span><span class="info-val">${fmtD(u.created_at)}</span></div>
+        </div>
+      </div>
+
+      <!-- Change Password Card -->
+      <div class="profile-card">
+        <div class="section-title">Change Password</div>
+        <div class="mg">
+          <div class="fw"><label class="mfl">Current Password</label>
+            <div class="iw"><span class="ii">${ico('lock', 14)}</span>
+              <input class="mfi" id="pw-current" type="password" placeholder="Enter current password" style="padding-left:36px"/>
+            </div>
+          </div>
+          <div><label class="mfl">New Password</label>
+            <div class="iw"><span class="ii">${ico('lock', 14)}</span>
+              <input class="mfi" id="pw-new" type="password" placeholder="Min 6 characters" style="padding-left:36px" oninput="pwStrength(this.value)"/>
+            </div>
+            <div id="pw-strength-bar" class="pw-strength" style="background:var(--g200)"></div>
+          </div>
+          <div><label class="mfl">Confirm New Password</label>
+            <div class="iw"><span class="ii">${ico('lock', 14)}</span>
+              <input class="mfi" id="pw-confirm" type="password" placeholder="Repeat new password" style="padding-left:36px"/>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px">
+          <button class="btn bf" onclick="changePassword()">${ico('key')} Change Password</button>
+        </div>
+      </div>
+    </div>
+  `);
+    }
+
+    function pwStrength(val) {
+      const bar = document.getElementById('pw-strength-bar');
+      if (!bar) return;
+      let s = 0;
+      if (val.length >= 6) s++;
+      if (val.length >= 10) s++;
+      if (/[A-Z]/.test(val)) s++;
+      if (/[0-9]/.test(val)) s++;
+      if (/[^a-zA-Z0-9]/.test(val)) s++;
+      const colors = ['var(--red)', 'var(--red)', 'var(--amber)', 'var(--amber)', 'var(--green)', 'var(--green)'];
+      bar.style.background = val ? colors[s] : 'var(--g200)';
+      bar.style.width = val ? (s / 5 * 100) + '%' : '100%';
+    }
+
+    async function handlePhotoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { toast('Image must be under 2MB', 'err'); return; }
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const b64 = e.target.result;
+        try {
+          await api('POST', '/users/me/photo', { photo_url: b64 });
+          STATE.user.photo_url = b64;
+          localStorage.setItem('agcr_user', JSON.stringify(STATE.user));
+          const avatarEl = document.getElementById('settings-avatar');
+          if (avatarEl) avatarEl.innerHTML = `<img src="${b64}" alt="avatar"/>`;
+          const sbAv = document.getElementById('sb-avatar');
+          if (sbAv) sbAv.innerHTML = `<img src="${b64}" alt="avatar"/>`;
+          toast('Profile photo updated!');
+        } catch (err) { toast(err.message, 'err'); }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function saveProfile() {
+      const name = document.getElementById('s-name')?.value.trim();
+      const phone = document.getElementById('s-phone')?.value.trim();
+      const bio = document.getElementById('s-bio')?.value.trim();
+      if (!name) { toast('Name is required', 'err'); return; }
+      try {
+        const u = await api('PUT', '/users/me', { name, phone, bio });
+        STATE.user = { ...STATE.user, ...u };
+        localStorage.setItem('agcr_user', JSON.stringify(STATE.user));
+        document.getElementById('sb-name').textContent = u.name;
+        const sbAv = document.getElementById('sb-avatar');
+        if (!STATE.user.photo_url) sbAv.textContent = initials(u.name);
+        toast('Profile updated successfully!');
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    async function changePassword() {
+      const curr = document.getElementById('pw-current')?.value;
+      const nw = document.getElementById('pw-new')?.value;
+      const conf = document.getElementById('pw-confirm')?.value;
+      if (!curr || !nw || !conf) { toast('All password fields are required', 'err'); return; }
+      if (nw.length < 6) { toast('New password must be at least 6 characters', 'err'); return; }
+      if (nw !== conf) { toast('Passwords do not match', 'err'); return; }
+      try {
+        await api('POST', '/auth/change-password', { current_password: curr, new_password: nw });
+        toast('Password changed successfully!');
+        document.getElementById('pw-current').value = '';
+        document.getElementById('pw-new').value = '';
+        document.getElementById('pw-confirm').value = '';
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // ADMIN DASHBOARD
+    // ─────────────────────────────────────────────────────────────────
+    async function renderAdminDash() {
+      setPage('Admin Overview', 'Complete system management & analytics',
+        `<span class="badge-admin">${ico('shield', 12)} Admin Console</span>`);
+      setContent(`<div class="empty"><div class="loader"></div></div>`);
+      try {
+        const [stats, logsData] = await Promise.all([
+          api('GET', '/admin/stats'),
+          api('GET', '/logs/all?per_page=8')
+        ]);
+        const logs = logsData.items || [];
+        setContent(`
+      <div class="sg">
+        ${statCard('users', 'Total Users', stats.total_users, '#dbeafe', '#2563eb', stats.active_users + ' active')}
+        ${statCard('hospital', 'Total Hospitals', stats.total_hospitals, '#d1fae5', '#059669', stats.smo_hospitals + ' with SMO')}
+        ${statCard('activity', 'Audit Logs', stats.total_logs, '#ede9fe', '#7c3aed', 'all actions')}
+        ${statCard('shield', 'On Hold', stats.hold_users, '#fef3c7', '#d97706', 'restricted users')}
+      </div>
+      <div class="grid2" style="margin-bottom:18px">
+        <div class="dp">
+          <div class="ph"><span class="pt">Action Summary</span></div>
+          <div style="padding:14px 20px;display:flex;flex-direction:column;gap:12px">
+            ${[['Creates', stats.creates, 'var(--green)', 'var(--green-l)'], ['Updates', stats.updates, 'var(--blue)', 'var(--blue-l)'], ['Deletes', stats.deletes, 'var(--red)', 'var(--red-l)']].map(([l, v, c, b]) => `
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:var(--g600)">Total ${l}</span>
+                <span style="background:${b};color:${c};padding:3px 12px;border-radius:100px;font-size:13px;font-weight:700">${v}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+        <div class="dp">
+          <div class="ph"><span class="pt">SMO Distribution</span></div>
+          <div style="padding:14px 20px;display:flex;flex-direction:column;gap:12px">
+            ${[['With SMO', stats.smo_hospitals, 'var(--green)'], ['Without SMO', stats.total_hospitals - stats.smo_hospitals, 'var(--g400)']].map(([l, v, c]) => `
+              <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="font-weight:600;color:var(--g700)">${l}</span><span style="color:${c};font-weight:700">${v}</span></div>
+              <div style="height:6px;background:var(--g200);border-radius:3px;overflow:hidden"><div style="height:100%;background:${c};border-radius:3px;width:${stats.total_hospitals ? ((v / stats.total_hospitals) * 100).toFixed(0) : 0}%;transition:width .5s"></div></div></div>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="dp">
+        <div class="ph"><span class="pt">Latest Audit Activity</span><button class="btn bg bsm" onclick="navigate('audit')">${ico('activity')} View All</button></div>
+        <div style="padding:0 20px 8px">
+          ${logs.length === 0 ? `<p style="padding:20px;font-size:13px;color:var(--g400)">No audit logs yet.</p>`
+            : logs.map(l => `<div class="ar">${actionIcon(l.action)}<div>
+              <div style="font-size:13px;font-weight:500"><strong>${escH(l.user_name || '—')}</strong> <span class="${badgeClass(l.action)}" style="margin:0 5px">${l.action}</span> ${escH(l.hospital_name || l.detail || '—')}</div>
+              <div class="am">${escH(l.detail || '')} · ${fmtDT(l.ts)}</div></div></div>`).join('')
+          }
+        </div>
+      </div>
+    `);
+      } catch (e) { setContent(`<div class="empty">Error: ${escH(e.message)}</div>`); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // ADMIN — USER MANAGEMENT
+    // ─────────────────────────────────────────────────────────────────
+    let usersState = { page: 1, q: '', status: '' };
+
+    async function renderAdminUsers(page = 1, q = usersState.q, status = usersState.status) {
+      usersState = { page, q, status };
+      setPage('User Management', 'Create, edit, and manage all user accounts',
+        `<button class="btn bf" onclick="showCreateUser()">${ico('plus')} Create User</button>`);
+      setContent(`<div class="empty"><div class="loader"></div></div>`);
+      try {
+        const qStr = q ? `&q=${encodeURIComponent(q)}` : '';
+        const sStr = status ? `&status=${status}` : '';
+        const data = await api('GET', `/admin/users?page=${page}&per_page=10${qStr}${sStr}`);
+        const { items: users, total, pages } = data;
+        const per = 10, from = total === 0 ? 0 : (page - 1) * per + 1, to = Math.min(page * per, total);
+        setContent(`
+      <div class="dp">
+        <div class="ph">
+          <span class="pt">All Users (${total})</span>
+          <div class="pa">
+            <div class="si-wrap"><span class="si-ico">${ico('search', 13)}</span>
+              <input class="si" id="usr-search" placeholder="Search name or email…" value="${escH(q)}" oninput="debUsrSearch(this.value)"/>
+            </div>
+            <select class="mfs" id="usr-status-filter" style="width:auto;padding:8px 32px 8px 12px;font-size:13px" onchange="renderAdminUsers(1,usersState.q,this.value)">
+              <option value="">All Status</option>
+              <option value="active" ${status === 'active' ? 'selected' : ''}>Active</option>
+              <option value="hold"   ${status === 'hold' ? 'selected' : ''}>On Hold</option>
+            </select>
+            ${q ? `<button class="btn bg bsm" onclick="renderAdminUsers(1,'','')">${ico('x')} Clear</button>` : ''}
+          </div>
+        </div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Hospitals</th><th>Last Login</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${users.length === 0 ? `<tr><td colspan="9" class="empty">No users found.</td></tr>`
+            : users.map((u, i) => `
+                  <tr style="cursor:pointer" onclick="viewUserDetail('${escH(u.id)}')">
+                    <td style="color:var(--g400);font-size:12px">${(page - 1) * 10 + i + 1}</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <div class="sb-av" style="width:28px;height:28px;font-size:11px;background:${u.role === 'admin' ? 'var(--amber)' : 'var(--sage)'};flex-shrink:0">
+                          ${u.photo_url ? `<img src="${escH(u.photo_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>` : initials(u.name)}
+                        </div>
+                        <div><div style="font-weight:600;font-size:13px">${escH(u.name)}</div></div>
+                      </div>
+                    </td>
+                    <td style="font-size:12.5px;color:var(--blue)">${escH(u.email)}</td>
+                    <td>${roleBadge(u.role)}</td>
+                    <td>${statusBadge(u.status)}</td>
+                    <td style="font-size:13px;font-weight:600;color:var(--ink)">${u.hospital_count}</td>
+                    <td style="font-size:11.5px;color:var(--g400)">${fmtD(u.last_login)}</td>
+                    <td style="font-size:11.5px;color:var(--g400)">${fmtD(u.created_at)}</td>
+                    <td onclick="event.stopPropagation()">
+                      <div style="display:flex;gap:4px">
+                        <button class="btn bg bsm" title="View Detail" onclick="viewUserDetail('${escH(u.id)}')">${ico('eye')}</button>
+                        <button class="btn bg bsm" title="Edit" onclick="showEditUser('${escH(u.id)}')">${ico('edit')}</button>
+                        ${u.status === 'hold'
+                ? `<button class="btn bgreen bsm" title="Activate" onclick="activateUser('${escH(u.id)}','${escH(u.name)}')">${ico('play')}</button>`
+                : u.role !== 'admin' ? `<button class="btn bamber bsm" title="Hold" onclick="holdUser('${escH(u.id)}','${escH(u.name)}')">${ico('pause')}</button>` : ''
+              }
+                        ${u.role !== 'admin' ? `<button class="btn bd bsm" title="Delete" onclick="confirmDeleteUser('${escH(u.id)}','${escH(u.name)}')">${ico('trash')}</button>` : ''}
+                      </div>
+                    </td>
+                  </tr>`).join('')
+          }
+            </tbody>
+          </table>
+        </div>
+        <div class="pg">
+          <span class="pgi">Showing ${from}–${to} of ${total}</span>
+          <div class="pgb">${pgHTML(page, pages, 'renderAdminUsers')}</div>
+        </div>
+      </div>`);
+      } catch (e) { setContent(`<div class="empty">Error: ${escH(e.message)}</div>`); }
+    }
+
+    let debUsrTimer;
+    function debUsrSearch(val) { clearTimeout(debUsrTimer); debUsrTimer = setTimeout(() => renderAdminUsers(1, val, usersState.status), 350); }
+
+    async function viewUserDetail(uid) {
+      try {
+        const u = await api('GET', `/admin/users/${uid}`);
+        showModal(`
+      <div class="mo mo-lg" onclick="event.stopPropagation()">
+        <div class="mh">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="sb-av" style="width:44px;height:44px;font-size:16px;background:${u.role === 'admin' ? 'var(--amber)' : 'var(--sage)'}">
+              ${u.photo_url ? `<img src="${escH(u.photo_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>` : initials(u.name)}
+            </div>
+            <div>
+              <div class="mt">${escH(u.name)}</div>
+              <div style="font-size:12px;color:var(--g400)">${escH(u.email)}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn bgreen bsm" onclick="closeModal();showEditUser('${escH(uid)}')">${ico('edit')} Edit</button>
+            <button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button>
+          </div>
+        </div>
+        <div class="mb">
+          <!-- Profile Info -->
+          <div class="grid-detail" style="margin-bottom:20px">
+            ${[['User ID', u.id, 'code'], ['Role', roleBadge(u.role), 'html'], ['Status', statusBadge(u.status), 'html'], ['Phone', u.phone || '—'], ['Last Login', fmtDT(u.last_login)], ['Member Since', fmtDT(u.created_at)], ['Total Hospitals', u.hospital_count], ['Total Logs', u.log_count]].map(([l, v, t]) => `
+              <div class="detail-item">
+                <div class="detail-label">${l}</div>
+                <div class="detail-val">${t === 'code' ? `<span class="code">${escH(v)}</span>` : t === 'html' ? v : escH(String(v || '—'))}</div>
+              </div>`).join('')}
+            ${u.bio ? `<div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Bio</div><div class="detail-val">${escH(u.bio)}</div></div>` : ''}
+          </div>
+
+          <!-- Recent Logs -->
+          <div class="sep"></div>
+          <div class="section-title">Recent Activity</div>
+          ${u.recent_logs.length === 0
+            ? `<p style="font-size:13px;color:var(--g400)">No activity yet.</p>`
+            : u.recent_logs.map(l => `<div class="ar">${actionIcon(l.action)}<div>
+              <div style="font-size:13px;font-weight:500"><span class="${badgeClass(l.action)}" style="margin-right:6px">${l.action}</span><strong>${escH(l.hospital_name || '—')}</strong></div>
+              <div class="am">${escH(l.detail || '')} · ${fmtDT(l.ts)}</div></div></div>`).join('')
+          }
+
+          <!-- Hospitals -->
+          ${u.hospitals.length > 0 ? `
+          <div class="sep"></div>
+          <div class="section-title">Hospitals Created (${u.hospitals.length})</div>
+          <div class="tw"><table>
+            <thead><tr><th>Hospital</th><th>Doctor</th><th>Specialty</th><th>SMO</th><th>Created</th></tr></thead>
+            <tbody>
+              ${u.hospitals.map(h => `<tr>
+                <td style="font-weight:600;font-size:13px">${escH(h.hospital_name)}</td>
+                <td style="font-size:13px">${escH(h.dr_name)}</td>
+                <td><span class="pill">${escH(h.specialty)}</span></td>
+                <td><span class="badge ${h.smo ? 'b-smo' : 'b-nosmo'}">${h.smo ? '✓ Yes' : '✗ No'}</span></td>
+                <td style="font-size:11.5px;color:var(--g400)">${fmtD(h.created_at)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>`: ''}
+        </div>
+        <div class="mf">
+          ${u.status === 'hold'
+            ? `<button class="btn bgreen" onclick="closeModal();activateUser('${escH(uid)}','${escH(u.name)}')">${ico('play')} Activate Account</button>`
+            : u.role !== 'admin' ? `<button class="btn bamber" onclick="closeModal();holdUser('${escH(uid)}','${escH(u.name)}')">${ico('pause')} Place on Hold</button>` : ''
+          }
+          <button class="btn bg bsm" onclick="closeModal();showResetPw('${escH(uid)}','${escH(u.name)}')">${ico('key')} Reset Password</button>
+          <button class="btn bg" onclick="closeModal()">Close</button>
+        </div>
+      </div>`);
+      } catch (e) { toast('Failed to load: ' + e.message, 'err'); }
+    }
+
+    function showCreateUser() {
+      showModal(`
+    <div class="mo" onclick="event.stopPropagation()">
+      <div class="mh"><span class="mt">➕ Create New User</span><button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button></div>
+      <div class="mb">
+        <div class="mg">
+          <div><label class="mfl">Full Name *</label><input class="mfi" id="cu-name" placeholder="e.g. Dr. Priya Sharma"/><div id="cu-e-name" class="em" style="display:none"></div></div>
+          <div><label class="mfl">Email *</label><input class="mfi" id="cu-email" type="email" placeholder="user@gmail.com"/><div id="cu-e-email" class="em" style="display:none"></div></div>
+          <div><label class="mfl">Password *</label>
+            <div class="iw"><span class="ii">${ico('lock', 14)}</span>
+              <input class="mfi" id="cu-pw" type="password" placeholder="Min 6 characters" style="padding-left:36px"/>
+            </div><div id="cu-e-pw" class="em" style="display:none"></div>
+          </div>
+          <div><label class="mfl">Phone</label><input class="mfi" id="cu-phone" type="tel" placeholder="e.g. 9876543210"/></div>
+          <div><label class="mfl">Role</label>
+            <select class="mfs" id="cu-role"><option value="user">User</option><option value="admin">Admin</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="mf"><button class="btn bg" onclick="closeModal()">Cancel</button><button class="btn bf" onclick="submitCreateUser()">${ico('plus')} Create User</button></div>
+    </div>`);
+    }
+
+    async function submitCreateUser() {
+      const name = document.getElementById('cu-name')?.value.trim();
+      const email = document.getElementById('cu-email')?.value.trim();
+      const pw = document.getElementById('cu-pw')?.value;
+      const phone = document.getElementById('cu-phone')?.value.trim();
+      const role = document.getElementById('cu-role')?.value;
+      let valid = true;
+      const fe = (id, msg) => { const el = document.getElementById('cu-e-' + id); el.textContent = msg; el.style.display = msg ? 'flex' : 'none'; };
+      if (!name) { fe('name', 'Name required'); valid = false; } else fe('name', '');
+      if (!email) { fe('email', 'Email required'); valid = false; } else fe('email', '');
+      if (!pw || pw.length < 6) { fe('pw', 'Password must be at least 6 characters'); valid = false; } else fe('pw', '');
+      if (!valid) return;
+      try {
+        await api('POST', '/admin/users', { name, email, password: pw, phone, role });
+        toast(`User "${name}" created!`);
+        closeModal();
+        renderAdminUsers(usersState.page, usersState.q, usersState.status);
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    async function showEditUser(uid) {
+      try {
+        const u = await api('GET', `/admin/users/${uid}`);
+        showModal(`
+      <div class="mo" onclick="event.stopPropagation()">
+        <div class="mh"><span class="mt">✏️ Edit User: ${escH(u.name)}</span><button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button></div>
+        <div class="mb">
+          <div class="mg">
+            <div><label class="mfl">Full Name</label><input class="mfi" id="eu-name" value="${escH(u.name || '')}"/></div>
+            <div><label class="mfl">Email</label><input class="mfi" id="eu-email" type="email" value="${escH(u.email || '')}"/></div>
+            <div><label class="mfl">Phone</label><input class="mfi" id="eu-phone" value="${escH(u.phone || '')}"/></div>
+            <div><label class="mfl">Role</label>
+              <select class="mfs" id="eu-role">
+                <option value="user"  ${u.role === 'user' ? 'selected' : ''}>User</option>
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+              </select>
+            </div>
+            <div><label class="mfl">Status</label>
+              <select class="mfs" id="eu-status">
+                <option value="active" ${u.status === 'active' ? 'selected' : ''}>Active</option>
+                <option value="hold"   ${u.status === 'hold' ? 'selected' : ''}>On Hold</option>
+              </select>
+            </div>
+            <div><label class="mfl">New Password <span style="color:var(--g400);font-weight:400">(leave blank to keep current)</span></label>
+              <input class="mfi" id="eu-pw" type="password" placeholder="Leave blank to keep unchanged"/>
+            </div>
+          </div>
+        </div>
+        <div class="mf"><button class="btn bg" onclick="closeModal()">Cancel</button><button class="btn bf" onclick="submitEditUser('${escH(uid)}')">${ico('check')} Save Changes</button></div>
+      </div>`);
+      } catch (e) { toast('Failed to load user: ' + e.message, 'err'); }
+    }
+
+    async function submitEditUser(uid) {
+      const body = {};
+      const name = document.getElementById('eu-name')?.value.trim();
+      const email = document.getElementById('eu-email')?.value.trim();
+      const phone = document.getElementById('eu-phone')?.value.trim();
+      const role = document.getElementById('eu-role')?.value;
+      const status = document.getElementById('eu-status')?.value;
+      const pw = document.getElementById('eu-pw')?.value;
+      if (name) body.name = name;
+      if (email) body.email = email;
+      if (phone) body.phone = phone;
+      if (role) body.role = role;
+      if (status) body.status = status;
+      if (pw) body.password = pw;
+      try {
+        const u = await api('PUT', `/admin/users/${uid}`, body);
+        toast(`User "${u.name}" updated!`);
+        closeModal();
+        renderAdminUsers(usersState.page, usersState.q, usersState.status);
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    async function holdUser(uid, name) {
+      try {
+        await api('POST', `/admin/users/${uid}/hold`);
+        toast(`"${name}" placed on hold.`, 'info');
+        renderAdminUsers(usersState.page, usersState.q, usersState.status);
+      } catch (e) { toast(e.message, 'err'); }
+    }
+    async function activateUser(uid, name) {
+      try {
+        await api('POST', `/admin/users/${uid}/activate`);
+        toast(`"${name}" activated!`, 'ok');
+        renderAdminUsers(usersState.page, usersState.q, usersState.status);
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    function confirmDeleteUser(uid, name) {
+      showModal(`
+    <div class="mo mo-sm" onclick="event.stopPropagation()">
+      <div class="mh"><span class="mt" style="color:var(--red)">Delete User</span><button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button></div>
+      <div class="mb"><p style="font-size:14px;color:var(--g600);line-height:1.6">Are you sure you want to delete user <strong>"${escH(name)}"</strong>?<br/>This will revoke all access. Action cannot be undone.</p></div>
+      <div class="mf"><button class="btn bg" onclick="closeModal()">Cancel</button><button class="btn bd" onclick="deleteUser('${escH(uid)}','${escH(name)}')">${ico('trash')} Delete</button></div>
+    </div>`);
+    }
+    async function deleteUser(uid, name) {
+      try {
+        await api('DELETE', `/admin/users/${uid}`);
+        toast(`User "${name}" deleted.`, 'err');
+        closeModal();
+        renderAdminUsers(usersState.page, usersState.q, usersState.status);
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    function showResetPw(uid, name) {
+      showModal(`
+    <div class="mo mo-sm" onclick="event.stopPropagation()">
+      <div class="mh"><span class="mt">Reset Password: ${escH(name)}</span><button class="btn bg bsm" onclick="closeModal()">${ico('x')}</button></div>
+      <div class="mb">
+        <div class="fg"><label class="mfl">New Password</label>
+          <div class="iw"><span class="ii">${ico('lock', 14)}</span>
+            <input class="mfi" id="rp-pw" type="password" placeholder="Min 6 characters" style="padding-left:36px"/>
+          </div>
+        </div>
+      </div>
+      <div class="mf"><button class="btn bg" onclick="closeModal()">Cancel</button><button class="btn bf" onclick="submitResetPw('${escH(uid)}','${escH(name)}')">${ico('key')} Reset Password</button></div>
+    </div>`);
+    }
+    async function submitResetPw(uid, name) {
+      const pw = document.getElementById('rp-pw')?.value;
+      if (!pw || pw.length < 6) { toast('Password must be at least 6 characters', 'err'); return; }
+      try {
+        await api('POST', `/admin/users/${uid}/reset-password`, { password: pw });
+        toast(`Password reset for "${name}"!`);
+        closeModal();
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // ADMIN — ALL HOSPITALS (read-only)
+    // ─────────────────────────────────────────────────────────────────
+    let adminHospState = { page: 1, q: '' };
+    async function renderAdminHospitals(page = 1, q = adminHospState.q) {
+      adminHospState = { page, q };
+      setPage('All Hospitals', 'Complete hospital registry (read-only view)',
+        `<button class="btn bo" onclick="exportHospCSV()">${ico('download')} Export CSV</button>`);
+      setContent(`<div class="empty"><div class="loader"></div></div>`);
+      try {
+        const data = await api('GET', `/hospitals?page=${page}&per_page=10&q=${encodeURIComponent(q)}`);
+        const { items: rows, total, pages } = data;
+        const per = 10, from = total === 0 ? 0 : (page - 1) * per + 1, to = Math.min(page * per, total);
+        setContent(`
+      <div class="dp">
+        <div class="ph">
+          <span class="pt">Hospital Registry (${total})</span>
+          <div class="pa">
+            <div class="si-wrap"><span class="si-ico">${ico('search', 13)}</span>
+              <input class="si" placeholder="Search…" value="${escH(q)}" oninput="debAdminHospSearch(this.value)"/>
+            </div>
+          </div>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>#</th><th>Doctor</th><th>Hospital</th><th>Specialty</th><th>Contact</th><th>Email</th><th>SMO</th><th>Created By</th><th>Created</th><th>Updated</th></tr></thead>
+          <tbody>
+            ${rows.length === 0 ? `<tr><td colspan="10" class="empty">No records found.</td></tr>`
+            : rows.map((r, i) => `<tr>
+                <td style="color:var(--g400);font-size:12px">${(page - 1) * 10 + i + 1}</td>
+                <td style="font-weight:600;font-size:13px">${escH(r.dr_name)}</td>
+                <td style="font-weight:500;font-size:13px">${escH(r.hospital_name)}</td>
+                <td><span class="pill">${escH(r.specialty)}</span></td>
+                <td style="font-size:12.5px">${escH(r.contact_number)}</td>
+                <td style="font-size:12.5px;color:var(--blue)">${escH(r.email)}</td>
+                <td><span class="badge ${r.smo ? 'b-smo' : 'b-nosmo'}">${r.smo ? '✓ Yes' : '✗ No'}</span></td>
+                <td style="font-size:12px;font-weight:500">${escH(r.creator_name || r.created_by || '—')}</td>
+                <td style="font-size:11.5px;color:var(--g400)">${fmtD(r.created_at)}</td>
+                <td style="font-size:11.5px;color:var(--g400)">${fmtD(r.updated_at)}</td>
+              </tr>`).join('')
+          }
+          </tbody>
+        </table></div>
+        <div class="pg">
+          <span class="pgi">Showing ${from}–${to} of ${total}</span>
+          <div class="pgb">${pgHTML(page, pages, 'renderAdminHospitals')}</div>
+        </div>
+      </div>`);
+      } catch (e) { setContent(`<div class="empty">Error: ${escH(e.message)}</div>`); }
+    }
+    let debAdmHospTimer;
+    function debAdminHospSearch(val) { clearTimeout(debAdmHospTimer); debAdmHospTimer = setTimeout(() => renderAdminHospitals(1, val), 350); }
+
+    // ─────────────────────────────────────────────────────────────────
+    // ADMIN — AUDIT LOGS
+    // ─────────────────────────────────────────────────────────────────
+    let auditState = { page: 1, action: '' };
+    async function renderAuditLogs(page = 1, action = auditState.action) {
+      auditState = { page, action };
+      setPage('Audit Logs', 'Complete system activity trail');
+      setContent(`<div class="empty"><div class="loader"></div></div>`);
+      try {
+        const aStr = action ? `&action=${action}` : '';
+        const data = await api('GET', `/logs/all?page=${page}&per_page=20${aStr}`);
+        const { items: logs, total, pages } = data;
+        const per = 20, from = total === 0 ? 0 : (page - 1) * per + 1, to = Math.min(page * per, total);
+        const actions = ['LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'DELETE', 'USER_CREATE', 'USER_UPDATE', 'USER_DELETE', 'USER_HOLD', 'USER_ACTIVATE', 'PASSWORD_CHANGE', 'PROFILE_UPDATE'];
+        setContent(`
+      <div class="dp">
+        <div class="ph">
+          <span class="pt">All System Actions (${total})</span>
+          <div class="pa">
+            <select class="mfs" style="width:auto;padding:8px 32px 8px 12px;font-size:13px" onchange="renderAuditLogs(1,this.value)">
+              <option value="">All Actions</option>
+              ${actions.map(a => `<option value="${a}" ${action === a ? 'selected' : ''}>${a}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Hospital/Target</th><th>Details</th><th>IP</th></tr></thead>
+          <tbody>
+            ${logs.length === 0 ? `<tr><td colspan="6" class="empty">No audit logs yet.</td></tr>`
+            : logs.map(l => `<tr>
+                <td style="font-size:11.5px;color:var(--g500);white-space:nowrap">${fmtDT(l.ts)}</td>
+                <td><div style="font-size:13px;font-weight:600">${escH(l.user_name || '—')}</div><div style="font-size:11px;color:var(--g400)">${escH(l.user_email || '')}</div></td>
+                <td><span class="${badgeClass(l.action)}">${l.action}</span></td>
+                <td style="font-size:13px;font-weight:500">${escH(l.hospital_name || '—')}</td>
+                <td style="font-size:12px;color:var(--g500)">${escH(l.detail || '—')}</td>
+                <td><span class="code">${escH(l.ip_address || '—')}</span></td>
+              </tr>`).join('')
+          }
+          </tbody>
+        </table></div>
+        <div class="pg">
+          <span class="pgi">Showing ${from}–${to} of ${total}</span>
+          <div class="pgb">${pgHTML(page, pages, 'renderAuditLogs')}</div>
+        </div>
+      </div>`);
+      } catch (e) { setContent(`<div class="empty">Error: ${escH(e.message)}</div>`); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // BOOT
+    // ─────────────────────────────────────────────────────────────────
+    (async function boot() {
+      if (STATE.token && STATE.user) {
+        // Verify token is still valid
+        try {
+          const me = await api('GET', '/auth/me');
+          STATE.user = { ...STATE.user, ...me };
+          STATE.role = me.role;
+          localStorage.setItem('agcr_user', JSON.stringify(STATE.user));
+          initApp();
+        } catch (e) {
+          // Token expired
+          STATE.token = null; STATE.user = null;
+          localStorage.removeItem('agcr_token'); localStorage.removeItem('agcr_user');
+        }
+      }
+      // Seed default admin if needed (first run)
+      try { await fetch('/api/admin/seed', { method: 'POST' }); } catch (e) { }
+    })();
+  

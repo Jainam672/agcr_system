@@ -54,6 +54,7 @@ class User(Base):
     phone        = Column(String(30), nullable=True)
     bio          = Column(Text, nullable=True)
     photo_url    = Column(Text, nullable=True)        # base64 or URL
+    can_add_hospitals = Column(Boolean, default=False, nullable=False)
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
     updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     created_by   = Column(String(36), ForeignKey("users.id"), nullable=True)

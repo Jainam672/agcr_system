@@ -15,6 +15,11 @@ import math
 router = APIRouter()
 
 
+def _is_admin(user):
+    role_str = str(user.role.value) if hasattr(user.role, 'value') else str(user.role)
+    return role_str == models.UserRole.admin.value
+
+
 def _log(db, user, action, hospital=None, detail=""):
     db.add(models.AuditLog(
         user_id       = user.id,
@@ -66,6 +71,8 @@ def list_hospitals(
 
 @router.post("", response_model=dict, status_code=201)
 def create_hospital(payload: HospitalCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not _is_admin(current_user) and not getattr(current_user, 'can_add_hospitals', False):
+        raise HTTPException(status_code=403, detail="Hospital creation is restricted to admin or permitted users.")
     h = models.Hospital(
         dr_name        = payload.dr_name,
         hospital_name  = payload.hospital_name,
@@ -101,6 +108,8 @@ def update_hospital(hid: str, payload: HospitalUpdate, db: Session = Depends(get
     ).first()
     if not h:
         raise HTTPException(status_code=404, detail="Hospital not found")
+    if not _is_admin(current_user) and not (getattr(current_user, 'can_add_hospitals', False) and h.created_by == current_user.id):
+        raise HTTPException(status_code=403, detail="Only admins or the permitted creator may update hospital records.")
 
     for field, val in payload.dict(exclude_unset=True).items():
         setattr(h, field, val)
@@ -117,6 +126,8 @@ def delete_hospital(hid: str, db: Session = Depends(get_db), current_user=Depend
     ).first()
     if not h:
         raise HTTPException(status_code=404, detail="Hospital not found")
+    if not _is_admin(current_user) and not (getattr(current_user, 'can_add_hospitals', False) and h.created_by == current_user.id):
+        raise HTTPException(status_code=403, detail="Only admins or the permitted creator may delete hospital records.")
     name = h.hospital_name
     h.is_deleted = True
     db.commit()

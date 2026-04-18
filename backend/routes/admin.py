@@ -35,21 +35,22 @@ def _fmt_user(u: models.User, db: Session) -> dict:
     ).scalar()
     creator = db.query(models.User).filter(models.User.id == u.created_by).first() if u.created_by else None
     return {
-        "id":              u.id,
-        "email":           u.email,
-        "name":            u.name,
-        "role":            u.role.value,
-        "status":          u.status.value,
-        "phone":           u.phone,
-        "bio":             u.bio,
-        "photo_url":       u.photo_url,
-        "created_at":      u.created_at.isoformat() if u.created_at else None,
-        "updated_at":      u.updated_at.isoformat() if u.updated_at else None,
-        "last_login":      u.last_login.isoformat() if u.last_login else None,
-        "created_by":      u.created_by,
-        "created_by_name": creator.name if creator else None,
-        "hospital_count":  hospital_count,
-        "log_count":       log_count,
+        "id":                u.id,
+        "email":             u.email,
+        "name":              u.name,
+        "role":              u.role.value,
+        "status":            u.status.value,
+        "phone":             u.phone,
+        "bio":               u.bio,
+        "photo_url":         u.photo_url,
+        "can_add_hospitals": bool(u.can_add_hospitals),
+        "created_at":        u.created_at.isoformat() if u.created_at else None,
+        "updated_at":        u.updated_at.isoformat() if u.updated_at else None,
+        "last_login":        u.last_login.isoformat() if u.last_login else None,
+        "created_by":        u.created_by,
+        "created_by_name":   creator.name if creator else None,
+        "hospital_count":    hospital_count,
+        "log_count":         log_count,
     }
 
 
@@ -135,13 +136,14 @@ def create_user(payload: AdminUserCreate, db: Session = Depends(get_db), admin=D
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     u = models.User(
-        email         = payload.email.lower(),
-        password_hash = hash_password(payload.password),
-        name          = payload.name,
-        phone         = payload.phone,
-        role          = payload.role,
-        status        = models.UserStatus.active,
-        created_by    = admin.id,
+        email              = payload.email.lower(),
+        password_hash      = hash_password(payload.password),
+        name               = payload.name,
+        phone              = payload.phone,
+        role               = payload.role,
+        status             = models.UserStatus.active,
+        can_add_hospitals  = payload.can_add_hospitals,
+        created_by         = admin.id,
     )
     db.add(u); db.commit(); db.refresh(u)
     _log(db, admin, models.ActionType.USER_CREATE, u, f"Created user: {u.name} ({u.email})")
@@ -164,6 +166,8 @@ def update_user(uid: str, payload: AdminUserUpdate, db: Session = Depends(get_db
         ex = db.query(models.User).filter(models.User.email == payload.email.lower(), models.User.id != uid).first()
         if ex: raise HTTPException(status_code=400, detail="Email already in use")
         u.email = payload.email.lower(); changed.append("email")
+    if payload.can_add_hospitals is not None:
+        u.can_add_hospitals = payload.can_add_hospitals; changed.append("hospital permission")
     if payload.password is not None:
         u.password_hash = hash_password(payload.password); changed.append("password")
     db.commit(); db.refresh(u)
