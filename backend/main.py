@@ -104,4 +104,6 @@ async def serve_frontend(full_path: str = ""):
     return HTMLResponse(content="<h1>Frontend not found</h1>", status_code=404)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", "8000"))
+    reload = os.getenv("RELOAD", "true").lower() == "true"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload)
